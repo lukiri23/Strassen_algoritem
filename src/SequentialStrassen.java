@@ -5,7 +5,7 @@ import javax.swing.JOptionPane;
 public class SequentialStrassen {
 
     public static void main(String[] args) {
-
+        //GUI
         String input = JOptionPane.showInputDialog(null, "Vnesite začetno velikost matrike:");
         int matrixSize;
 
