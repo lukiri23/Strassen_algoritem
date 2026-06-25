@@ -68,6 +68,21 @@ public class SequentialStrassen {
             return multiply(A, B);
         }
 
+        if (n % 2 == 1) {
+            int[][] A2 = new int[n + 1][n + 1];
+            int[][] B2 = new int[n + 1][n + 1];
+            for (int i = 0; i < n; i++) {
+                System.arraycopy(A[i], 0, A2[i], 0, n);
+                System.arraycopy(B[i], 0, B2[i], 0, n);
+            }
+            int[][] C2 = strassenMultiply(A2, B2);
+            int[][] C = new int[n][n];
+            for (int i = 0; i < n; i++) {
+                System.arraycopy(C2[i], 0, C[i], 0, n);
+            }
+            return C;
+        }
+
         int newSize = n / 2;
         int[][] A11 = new int[newSize][newSize];
         int[][] A12 = new int[newSize][newSize];
