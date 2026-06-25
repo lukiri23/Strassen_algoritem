@@ -4,6 +4,8 @@ import javax.swing.JOptionPane;
 
 public class SequentialStrassen {
 
+    private static final int THRESHOLD = 64;
+
     public static void main(String[] args) {
 
         String input = JOptionPane.showInputDialog(null, "Vnesite začetno velikost matrike:");
@@ -60,10 +62,10 @@ public class SequentialStrassen {
         return matrix;
     }
 
-    private static void strassenMultiply(int[][] A, int[][] B) {
+    private static int[][] strassenMultiply(int[][] A, int[][] B) {
         int n = A.length;
-        if (n == 1) {
-            return;
+        if (n <= THRESHOLD) {
+            return multiply(A, B);
         }
 
         int newSize = n / 2;
@@ -85,13 +87,13 @@ public class SequentialStrassen {
         splitMatrix(B, B21, newSize, 0);
         splitMatrix(B, B22, newSize, newSize);
 
-        int[][] M1 = multiply(add(A11, A22), add(B11, B22));
-        int[][] M2 = multiply(add(A21, A22), B11);
-        int[][] M3 = multiply(A11, subtract(B12, B22));
-        int[][] M4 = multiply(A22, subtract(B21, B11));
-        int[][] M5 = multiply(add(A11, A12), B22);
-        int[][] M6 = multiply(subtract(A21, A11), add(B11, B12));
-        int[][] M7 = multiply(subtract(A12, A22), add(B21, B22));
+        int[][] M1 = strassenMultiply(add(A11, A22), add(B11, B22));
+        int[][] M2 = strassenMultiply(add(A21, A22), B11);
+        int[][] M3 = strassenMultiply(A11, subtract(B12, B22));
+        int[][] M4 = strassenMultiply(A22, subtract(B21, B11));
+        int[][] M5 = strassenMultiply(add(A11, A12), B22);
+        int[][] M6 = strassenMultiply(subtract(A21, A11), add(B11, B12));
+        int[][] M7 = strassenMultiply(subtract(A12, A22), add(B21, B22));
 
         int[][] C = new int[n][n];
         combineMatrix(C, add(subtract(add(M1, M4), M5), M7), 0, 0);
@@ -99,6 +101,7 @@ public class SequentialStrassen {
         combineMatrix(C, add(M2, M4), newSize, 0);
         combineMatrix(C, add(subtract(add(M1, M3), M2), M6), newSize, newSize);
 
+        return C;
     }
 
     private static void splitMatrix(int[][] parent, int[][] child, int row, int col) {
