@@ -1,10 +1,15 @@
+import java.io.FileWriter;
+import java.io.IOException;
+import java.io.PrintWriter;
 import java.text.DecimalFormat;
+import java.util.Locale;
 import java.util.Random;
 import javax.swing.JOptionPane;
 
 public class SequentialStrassen {
 
     private static final int THRESHOLD = 128;
+    private static final String DATOTEKA_REZULTATOV = "results.csv";
 
     public static void main(String[] args) {
 
@@ -21,6 +26,8 @@ public class SequentialStrassen {
             JOptionPane.showMessageDialog(null, "Napaka: Vnesite veljavno številko.", "Napaka", JOptionPane.ERROR_MESSAGE);
             return;
         }
+
+        pripraviCsvDatoteko();
 
         while (true) {
             int[][] matrixA = generateRandomMatrix(matrixSize);
@@ -49,7 +56,10 @@ public class SequentialStrassen {
 
             DecimalFormat df = new DecimalFormat("0.0000");
             double avgTime = totalElapsedTime / 3;
+
             System.out.println("Velikost matrike: " + matrixSize + ", Povprečni čas: " + df.format(avgTime) + " sekund");
+
+            zapisiCsvVrstico(matrixSize, avgTime);
 
             matrixSize += 500;
         }
@@ -170,5 +180,22 @@ public class SequentialStrassen {
                     C[i][j] += A[i][k] * B[k][j];
 
         return C;
+    }
+
+    private static void pripraviCsvDatoteko() {
+        try (PrintWriter izpis = new PrintWriter(new FileWriter(DATOTEKA_REZULTATOV))) {
+            izpis.println("size,sequential,parallel,distributed");
+        } catch (IOException e) {
+            System.out.println("Napaka pri pripravi CSV datoteke.");
+        }
+    }
+
+    private static void zapisiCsvVrstico(int velikost, double casZaporedno) {
+        try (PrintWriter izpis = new PrintWriter(new FileWriter(DATOTEKA_REZULTATOV, true))) {
+            String cas = String.format(Locale.US, "%.4f", casZaporedno);
+            izpis.println(velikost + "," + cas + ",,");
+        } catch (IOException e) {
+            System.out.println("Napaka pri zapisovanju rezultatov.");
+        }
     }
 }
