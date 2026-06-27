@@ -4,7 +4,7 @@ import javax.swing.JOptionPane;
 
 public class SequentialStrassen {
 
-    private static final int THRESHOLD = 64;
+    private static final int THRESHOLD = 128;
 
     public static void main(String[] args) {
 
@@ -31,15 +31,17 @@ public class SequentialStrassen {
 
             for (int i = 0; i < 3; i++) {
                 long startTime = System.nanoTime();
-                strassenMultiply(matrixA, matrixB);
+                int[][] result = strassenMultiply(matrixA, matrixB);
                 long endTime = System.nanoTime();
 
                 double elapsedTime = (endTime - startTime) / 1_000_000_000.0;
+
                 if (elapsedTime > 600) {
                     JOptionPane.showMessageDialog(null, "Izvedba za velikost " + matrixSize + " presega 10 minut. Program se zaključi.", "Opozorilo", JOptionPane.WARNING_MESSAGE);
                     timeExceeded = true;
                     break;
                 }
+
                 totalElapsedTime += elapsedTime;
             }
 
@@ -56,38 +58,31 @@ public class SequentialStrassen {
     private static int[][] generateRandomMatrix(int size) {
         Random random = new Random();
         int[][] matrix = new int[size][size];
+
         for (int i = 0; i < size; i++)
             for (int j = 0; j < size; j++)
                 matrix[i][j] = random.nextInt(100);
+
         return matrix;
     }
 
     private static int[][] strassenMultiply(int[][] A, int[][] B) {
         int n = A.length;
+
         if (n <= THRESHOLD) {
             return multiply(A, B);
         }
 
-        if (n % 2 == 1) {
-            int[][] A2 = new int[n + 1][n + 1];
-            int[][] B2 = new int[n + 1][n + 1];
-            for (int i = 0; i < n; i++) {
-                System.arraycopy(A[i], 0, A2[i], 0, n);
-                System.arraycopy(B[i], 0, B2[i], 0, n);
-            }
-            int[][] C2 = strassenMultiply(A2, B2);
-            int[][] C = new int[n][n];
-            for (int i = 0; i < n; i++) {
-                System.arraycopy(C2[i], 0, C[i], 0, n);
-            }
-            return C;
+        int newSize = n / 2;
+        if (n % 2 != 0) {
+            newSize++;
         }
 
-        int newSize = n / 2;
         int[][] A11 = new int[newSize][newSize];
         int[][] A12 = new int[newSize][newSize];
         int[][] A21 = new int[newSize][newSize];
         int[][] A22 = new int[newSize][newSize];
+
         int[][] B11 = new int[newSize][newSize];
         int[][] B12 = new int[newSize][newSize];
         int[][] B21 = new int[newSize][newSize];
@@ -97,6 +92,7 @@ public class SequentialStrassen {
         splitMatrix(A, A12, 0, newSize);
         splitMatrix(A, A21, newSize, 0);
         splitMatrix(A, A22, newSize, newSize);
+
         splitMatrix(B, B11, 0, 0);
         splitMatrix(B, B12, 0, newSize);
         splitMatrix(B, B21, newSize, 0);
@@ -111,6 +107,7 @@ public class SequentialStrassen {
         int[][] M7 = strassenMultiply(subtract(A12, A22), add(B21, B22));
 
         int[][] C = new int[n][n];
+
         combineMatrix(C, add(subtract(add(M1, M4), M5), M7), 0, 0);
         combineMatrix(C, add(M3, M5), 0, newSize);
         combineMatrix(C, add(M2, M4), newSize, 0);
@@ -121,41 +118,57 @@ public class SequentialStrassen {
 
     private static void splitMatrix(int[][] parent, int[][] child, int row, int col) {
         for (int i = 0; i < child.length; i++) {
-            System.arraycopy(parent[row + i], col, child[i], 0, child.length);
+            if (row + i < parent.length) {
+                int copyLength = Math.min(child.length, parent.length - col);
+                if (copyLength > 0) {
+                    System.arraycopy(parent[row + i], col, child[i], 0, copyLength);
+                }
+            }
         }
     }
 
     private static void combineMatrix(int[][] parent, int[][] child, int row, int col) {
         for (int i = 0; i < child.length; i++) {
-            System.arraycopy(child[i], 0, parent[row + i], col, child.length);
+            if (row + i < parent.length) {
+                int copyLength = Math.min(child.length, parent.length - col);
+                if (copyLength > 0) {
+                    System.arraycopy(child[i], 0, parent[row + i], col, copyLength);
+                }
+            }
         }
     }
 
     private static int[][] add(int[][] A, int[][] B) {
         int n = A.length;
         int[][] C = new int[n][n];
+
         for (int i = 0; i < n; i++)
             for (int j = 0; j < n; j++)
                 C[i][j] = A[i][j] + B[i][j];
+
         return C;
     }
 
     private static int[][] subtract(int[][] A, int[][] B) {
         int n = A.length;
         int[][] C = new int[n][n];
+
         for (int i = 0; i < n; i++)
             for (int j = 0; j < n; j++)
                 C[i][j] = A[i][j] - B[i][j];
+
         return C;
     }
 
     private static int[][] multiply(int[][] A, int[][] B) {
         int n = A.length;
         int[][] C = new int[n][n];
+
         for (int i = 0; i < n; i++)
             for (int j = 0; j < n; j++)
                 for (int k = 0; k < n; k++)
                     C[i][j] += A[i][k] * B[k][j];
+
         return C;
     }
 }
