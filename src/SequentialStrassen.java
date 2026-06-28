@@ -4,11 +4,14 @@ import java.io.PrintWriter;
 import java.text.DecimalFormat;
 import java.util.Locale;
 import java.util.Random;
+import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.RecursiveTask;
 import javax.swing.JOptionPane;
 
 public class SequentialStrassen {
 
     private static final int THRESHOLD = 128;
+    private static final int PARALLEL_THRESHOLD = 512;
     private static final String DATOTEKA_REZULTATOV = "results.csv";
 
     public static void main(String[] args) {
@@ -29,11 +32,17 @@ public class SequentialStrassen {
 
         pripraviCsvDatoteko();
 
+        int stJeder = Runtime.getRuntime().availableProcessors();
+        ForkJoinPool bazenNiti = new ForkJoinPool(stJeder);
+
+        System.out.println("Število procesorskih jeder: " + stJeder);
+
         while (true) {
             int[][] matrixA = generateRandomMatrix(matrixSize);
             int[][] matrixB = generateRandomMatrix(matrixSize);
 
             double totalElapsedTime = 0;
+            double totalParallelTime = 0;
             boolean timeExceeded = false;
 
             for (int i = 0; i < 3; i++) {
@@ -44,7 +53,7 @@ public class SequentialStrassen {
                 double elapsedTime = (endTime - startTime) / 1_000_000_000.0;
 
                 if (elapsedTime > 600) {
-                    JOptionPane.showMessageDialog(null, "Izvedba za velikost " + matrixSize + " presega 10 minut. Program se zaključi.", "Opozorilo", JOptionPane.WARNING_MESSAGE);
+                    JOptionPane.showMessageDialog(null, "Zaporedna izvedba za velikost " + matrixSize + " presega 10 minut. Program se zaključi.", "Opozorilo", JOptionPane.WARNING_MESSAGE);
                     timeExceeded = true;
                     break;
                 }
@@ -54,15 +63,38 @@ public class SequentialStrassen {
 
             if (timeExceeded) break;
 
+            for (int i = 0; i < 3; i++) {
+                long startTime = System.nanoTime();
+                int[][] result = parallelStrassenMultiply(matrixA, matrixB, bazenNiti);
+                long endTime = System.nanoTime();
+
+                double elapsedTime = (endTime - startTime) / 1_000_000_000.0;
+
+                if (elapsedTime > 600) {
+                    JOptionPane.showMessageDialog(null, "Paralelna izvedba za velikost " + matrixSize + " presega 10 minut. Program se zaključi.", "Opozorilo", JOptionPane.WARNING_MESSAGE);
+                    timeExceeded = true;
+                    break;
+                }
+
+                totalParallelTime += elapsedTime;
+            }
+
+            if (timeExceeded) break;
+
             DecimalFormat df = new DecimalFormat("0.0000");
             double avgTime = totalElapsedTime / 3;
+            double avgParallelTime = totalParallelTime / 3;
 
-            System.out.println("Velikost matrike: " + matrixSize + ", Povprečni čas: " + df.format(avgTime) + " sekund");
+            System.out.println("Velikost matrike: " + matrixSize
+                    + ", Zaporedni čas: " + df.format(avgTime) + " sekund"
+                    + ", Paralelni čas: " + df.format(avgParallelTime) + " sekund");
 
-            zapisiCsvVrstico(matrixSize, avgTime);
+            zapisiCsvVrstico(matrixSize, avgTime, avgParallelTime);
 
             matrixSize += 500;
         }
+
+        bazenNiti.shutdown();
     }
 
     private static int[][] generateRandomMatrix(int size) {
@@ -124,6 +156,10 @@ public class SequentialStrassen {
         combineMatrix(C, add(subtract(add(M1, M3), M2), M6), newSize, newSize);
 
         return C;
+    }
+
+    private static int[][] parallelStrassenMultiply(int[][] A, int[][] B, ForkJoinPool bazenNiti) {
+        return bazenNiti.invoke(new ParalelnaNaloga(A, B));
     }
 
     private static void splitMatrix(int[][] parent, int[][] child, int row, int col) {
@@ -190,12 +226,91 @@ public class SequentialStrassen {
         }
     }
 
-    private static void zapisiCsvVrstico(int velikost, double casZaporedno) {
+    private static void zapisiCsvVrstico(int velikost, double casZaporedno, double casParalelno) {
         try (PrintWriter izpis = new PrintWriter(new FileWriter(DATOTEKA_REZULTATOV, true))) {
-            String cas = String.format(Locale.US, "%.4f", casZaporedno);
-            izpis.println(velikost + "," + cas + ",,");
+            String zaporedniCas = String.format(Locale.US, "%.4f", casZaporedno);
+            String paralelniCas = String.format(Locale.US, "%.4f", casParalelno);
+
+            izpis.println(velikost + "," + zaporedniCas + "," + paralelniCas + ",");
         } catch (IOException e) {
             System.out.println("Napaka pri zapisovanju rezultatov.");
+        }
+    }
+
+    private static class ParalelnaNaloga extends RecursiveTask<int[][]> {
+
+        private final int[][] prva;
+        private final int[][] druga;
+
+        ParalelnaNaloga(int[][] prva, int[][] druga) {
+            this.prva = prva;
+            this.druga = druga;
+        }
+
+        @Override
+        protected int[][] compute() {
+            int n = prva.length;
+
+            if (n <= PARALLEL_THRESHOLD) {
+                return strassenMultiply(prva, druga);
+            }
+
+            int newSize = n / 2;
+            if (n % 2 != 0) {
+                newSize++;
+            }
+
+            int[][] A11 = new int[newSize][newSize];
+            int[][] A12 = new int[newSize][newSize];
+            int[][] A21 = new int[newSize][newSize];
+            int[][] A22 = new int[newSize][newSize];
+
+            int[][] B11 = new int[newSize][newSize];
+            int[][] B12 = new int[newSize][newSize];
+            int[][] B21 = new int[newSize][newSize];
+            int[][] B22 = new int[newSize][newSize];
+
+            splitMatrix(prva, A11, 0, 0);
+            splitMatrix(prva, A12, 0, newSize);
+            splitMatrix(prva, A21, newSize, 0);
+            splitMatrix(prva, A22, newSize, newSize);
+
+            splitMatrix(druga, B11, 0, 0);
+            splitMatrix(druga, B12, 0, newSize);
+            splitMatrix(druga, B21, newSize, 0);
+            splitMatrix(druga, B22, newSize, newSize);
+
+            ParalelnaNaloga naloga1 = new ParalelnaNaloga(add(A11, A22), add(B11, B22));
+            ParalelnaNaloga naloga2 = new ParalelnaNaloga(add(A21, A22), B11);
+            ParalelnaNaloga naloga3 = new ParalelnaNaloga(A11, subtract(B12, B22));
+            ParalelnaNaloga naloga4 = new ParalelnaNaloga(A22, subtract(B21, B11));
+            ParalelnaNaloga naloga5 = new ParalelnaNaloga(add(A11, A12), B22);
+            ParalelnaNaloga naloga6 = new ParalelnaNaloga(subtract(A21, A11), add(B11, B12));
+            ParalelnaNaloga naloga7 = new ParalelnaNaloga(subtract(A12, A22), add(B21, B22));
+
+            naloga2.fork();
+            naloga3.fork();
+            naloga4.fork();
+            naloga5.fork();
+            naloga6.fork();
+            naloga7.fork();
+
+            int[][] M1 = naloga1.compute();
+            int[][] M2 = naloga2.join();
+            int[][] M3 = naloga3.join();
+            int[][] M4 = naloga4.join();
+            int[][] M5 = naloga5.join();
+            int[][] M6 = naloga6.join();
+            int[][] M7 = naloga7.join();
+
+            int[][] C = new int[n][n];
+
+            combineMatrix(C, add(subtract(add(M1, M4), M5), M7), 0, 0);
+            combineMatrix(C, add(M3, M5), 0, newSize);
+            combineMatrix(C, add(M2, M4), newSize, 0);
+            combineMatrix(C, add(subtract(add(M1, M3), M2), M6), newSize, newSize);
+
+            return C;
         }
     }
 }
