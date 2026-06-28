@@ -38,8 +38,10 @@ public class SequentialStrassen {
         System.out.println("Število procesorskih jeder: " + stJeder);
 
         while (true) {
-            int[][] matrixA = generateRandomMatrix(matrixSize);
-            int[][] matrixB = generateRandomMatrix(matrixSize);
+            long osnovniSeed = narediSeed(matrixSize);
+
+            int[][] matrixA = generateRandomMatrix(matrixSize, osnovniSeed);
+            int[][] matrixB = generateRandomMatrix(matrixSize, osnovniSeed + 1);
 
             double totalElapsedTime = 0;
             double totalParallelTime = 0;
@@ -97,8 +99,12 @@ public class SequentialStrassen {
         bazenNiti.shutdown();
     }
 
-    private static int[][] generateRandomMatrix(int size) {
-        Random random = new Random();
+    private static long narediSeed(int velikost) {
+        return 123456789L + velikost * 31L;
+    }
+
+    private static int[][] generateRandomMatrix(int size, long seed) {
+        Random random = new Random(seed);
         int[][] matrix = new int[size][size];
 
         for (int i = 0; i < size; i++)
