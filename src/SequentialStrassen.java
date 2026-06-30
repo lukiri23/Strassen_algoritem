@@ -16,6 +16,16 @@ public class SequentialStrassen {
 
     public static void main(String[] args) {
 
+        String nacinIzvedbe = pridobiNacinIzvedbe(args);
+        if (nacinIzvedbe == null) {
+            return;
+        }
+
+        if (nacinIzvedbe.equals("distributed")) {
+            JOptionPane.showMessageDialog(null, "Porazdeljena izvedba še ni dodana.", "Obvestilo", JOptionPane.INFORMATION_MESSAGE);
+            return;
+        }
+
         String input = JOptionPane.showInputDialog(null, "Vnesite začetno velikost matrike:");
         int matrixSize;
 
@@ -33,8 +43,13 @@ public class SequentialStrassen {
         pripraviCsvDatoteko();
 
         int stJeder = Runtime.getRuntime().availableProcessors();
-        ForkJoinPool bazenNiti = new ForkJoinPool(stJeder);
+        ForkJoinPool bazenNiti = null;
 
+        if (izvajaParalelno(nacinIzvedbe)) {
+            bazenNiti = new ForkJoinPool(stJeder);
+        }
+
+        System.out.println("Način izvedbe: " + nacinIzvedbe);
         System.out.println("Število procesorskih jeder: " + stJeder);
 
         while (true) {
@@ -43,60 +58,98 @@ public class SequentialStrassen {
             int[][] matrixA = generateRandomMatrix(matrixSize, osnovniSeed);
             int[][] matrixB = generateRandomMatrix(matrixSize, osnovniSeed + 1);
 
-            double totalElapsedTime = 0;
-            double totalParallelTime = 0;
+            Double avgTime = null;
+            Double avgParallelTime = null;
             boolean timeExceeded = false;
 
-            for (int i = 0; i < 3; i++) {
-                long startTime = System.nanoTime();
-                int[][] result = strassenMultiply(matrixA, matrixB);
-                long endTime = System.nanoTime();
+            if (izvajaZaporedno(nacinIzvedbe)) {
+                double totalElapsedTime = 0;
 
-                double elapsedTime = (endTime - startTime) / 1_000_000_000.0;
+                for (int i = 0; i < 3; i++) {
+                    long startTime = System.nanoTime();
+                    int[][] result = strassenMultiply(matrixA, matrixB);
+                    long endTime = System.nanoTime();
 
-                if (elapsedTime > 600) {
-                    JOptionPane.showMessageDialog(null, "Zaporedna izvedba za velikost " + matrixSize + " presega 10 minut. Program se zaključi.", "Opozorilo", JOptionPane.WARNING_MESSAGE);
-                    timeExceeded = true;
-                    break;
+                    double elapsedTime = (endTime - startTime) / 1_000_000_000.0;
+
+                    if (elapsedTime > 600) {
+                        JOptionPane.showMessageDialog(null, "Zaporedna izvedba za velikost " + matrixSize + " presega 10 minut. Program se zaključi.", "Opozorilo", JOptionPane.WARNING_MESSAGE);
+                        timeExceeded = true;
+                        break;
+                    }
+
+                    totalElapsedTime += elapsedTime;
                 }
 
-                totalElapsedTime += elapsedTime;
+                if (timeExceeded) break;
+
+                avgTime = totalElapsedTime / 3;
             }
 
-            if (timeExceeded) break;
+            if (izvajaParalelno(nacinIzvedbe)) {
+                double totalParallelTime = 0;
 
-            for (int i = 0; i < 3; i++) {
-                long startTime = System.nanoTime();
-                int[][] result = parallelStrassenMultiply(matrixA, matrixB, bazenNiti);
-                long endTime = System.nanoTime();
+                for (int i = 0; i < 3; i++) {
+                    long startTime = System.nanoTime();
+                    int[][] result = parallelStrassenMultiply(matrixA, matrixB, bazenNiti);
+                    long endTime = System.nanoTime();
 
-                double elapsedTime = (endTime - startTime) / 1_000_000_000.0;
+                    double elapsedTime = (endTime - startTime) / 1_000_000_000.0;
 
-                if (elapsedTime > 600) {
-                    JOptionPane.showMessageDialog(null, "Paralelna izvedba za velikost " + matrixSize + " presega 10 minut. Program se zaključi.", "Opozorilo", JOptionPane.WARNING_MESSAGE);
-                    timeExceeded = true;
-                    break;
+                    if (elapsedTime > 600) {
+                        JOptionPane.showMessageDialog(null, "Paralelna izvedba za velikost " + matrixSize + " presega 10 minut. Program se zaključi.", "Opozorilo", JOptionPane.WARNING_MESSAGE);
+                        timeExceeded = true;
+                        break;
+                    }
+
+                    totalParallelTime += elapsedTime;
                 }
 
-                totalParallelTime += elapsedTime;
-            }
+                if (timeExceeded) break;
 
-            if (timeExceeded) break;
+                avgParallelTime = totalParallelTime / 3;
+            }
 
             DecimalFormat df = new DecimalFormat("0.0000");
-            double avgTime = totalElapsedTime / 3;
-            double avgParallelTime = totalParallelTime / 3;
+
+            String zaporedniIzpis = avgTime == null ? "-" : df.format(avgTime) + " sekund";
+            String paralelniIzpis = avgParallelTime == null ? "-" : df.format(avgParallelTime) + " sekund";
 
             System.out.println("Velikost matrike: " + matrixSize
-                    + ", Zaporedni čas: " + df.format(avgTime) + " sekund"
-                    + ", Paralelni čas: " + df.format(avgParallelTime) + " sekund");
+                    + ", Zaporedni čas: " + zaporedniIzpis
+                    + ", Paralelni čas: " + paralelniIzpis);
 
             zapisiCsvVrstico(matrixSize, avgTime, avgParallelTime);
 
             matrixSize += 500;
         }
 
-        bazenNiti.shutdown();
+        if (bazenNiti != null) {
+            bazenNiti.shutdown();
+        }
+    }
+
+    private static String pridobiNacinIzvedbe(String[] args) {
+        if (args.length == 0) {
+            return "both";
+        }
+
+        String nacin = args[0].toLowerCase();
+
+        if (nacin.equals("sequential") || nacin.equals("parallel") || nacin.equals("both") || nacin.equals("distributed")) {
+            return nacin;
+        }
+
+        JOptionPane.showMessageDialog(null, "Neveljaven način izvedbe. Uporabi: sequential, parallel, both ali distributed.", "Napaka", JOptionPane.ERROR_MESSAGE);
+        return null;
+    }
+
+    private static boolean izvajaZaporedno(String nacin) {
+        return nacin.equals("sequential") || nacin.equals("both");
+    }
+
+    private static boolean izvajaParalelno(String nacin) {
+        return nacin.equals("parallel") || nacin.equals("both");
     }
 
     private static long narediSeed(int velikost) {
@@ -232,10 +285,10 @@ public class SequentialStrassen {
         }
     }
 
-    private static void zapisiCsvVrstico(int velikost, double casZaporedno, double casParalelno) {
+    private static void zapisiCsvVrstico(int velikost, Double casZaporedno, Double casParalelno) {
         try (PrintWriter izpis = new PrintWriter(new FileWriter(DATOTEKA_REZULTATOV, true))) {
-            String zaporedniCas = String.format(Locale.US, "%.4f", casZaporedno);
-            String paralelniCas = String.format(Locale.US, "%.4f", casParalelno);
+            String zaporedniCas = casZaporedno == null ? "" : String.format(Locale.US, "%.4f", casZaporedno);
+            String paralelniCas = casParalelno == null ? "" : String.format(Locale.US, "%.4f", casParalelno);
 
             izpis.println(velikost + "," + zaporedniCas + "," + paralelniCas + ",");
         } catch (IOException e) {
