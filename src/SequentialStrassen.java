@@ -21,11 +21,6 @@ public class SequentialStrassen {
             return;
         }
 
-        if (nacinIzvedbe.equals("distributed")) {
-            JOptionPane.showMessageDialog(null, "Porazdeljena izvedba še ni dodana.", "Obvestilo", JOptionPane.INFORMATION_MESSAGE);
-            return;
-        }
-
         String input = JOptionPane.showInputDialog(null, "Vnesite začetno velikost matrike:");
         int matrixSize;
 
@@ -37,6 +32,14 @@ public class SequentialStrassen {
             }
         } catch (NumberFormatException e) {
             JOptionPane.showMessageDialog(null, "Napaka: Vnesite veljavno številko.", "Napaka", JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+
+        if (nacinIzvedbe.equals("distributed")) {
+            int stProcesov = pridobiSteviloProcesov();
+            long osnovniSeed = narediSeed(matrixSize);
+
+            zazeniPorazdeljeno(matrixSize, osnovniSeed, stProcesov);
             return;
         }
 
@@ -150,6 +153,52 @@ public class SequentialStrassen {
 
     private static boolean izvajaParalelno(String nacin) {
         return nacin.equals("parallel") || nacin.equals("both");
+    }
+
+    private static int pridobiSteviloProcesov() {
+        String input = JOptionPane.showInputDialog(null, "Vnesite število procesov za porazdeljeno izvedbo:");
+
+        try {
+            int stProcesov = Integer.parseInt(input);
+            if (stProcesov < 2) {
+                return 2;
+            }
+            return stProcesov;
+        } catch (NumberFormatException e) {
+            return 4;
+        }
+    }
+
+    private static void zazeniPorazdeljeno(int velikost, long osnovniSeed, int stProcesov) {
+        String mpjHome = System.getenv("MPJ_HOME");
+
+        if (mpjHome == null || mpjHome.isEmpty()) {
+            System.out.println("MPJ_HOME ni nastavljen.");
+            return;
+        }
+
+        String mpjrun = mpjHome + "\\bin\\mpjrun.bat";
+        String mpjJar = mpjHome + "\\lib\\mpj.jar";
+
+        // tukaj samo zaženem MPI program, pravo računanje dodam kasneje
+        ProcessBuilder pb = new ProcessBuilder(
+                mpjrun,
+                "-np", Integer.toString(stProcesov),
+                "-cp", ".;src;" + mpjJar,
+                "StrassenMPI",
+                Integer.toString(velikost),
+                Long.toString(osnovniSeed)
+        );
+
+        pb.inheritIO();
+
+        try {
+            Process proces = pb.start();
+            int izhodnaKoda = proces.waitFor();
+            System.out.println("MPI proces zaključen s kodo: " + izhodnaKoda);
+        } catch (IOException | InterruptedException e) {
+            System.out.println("Napaka pri zagonu porazdeljene izvedbe.");
+        }
     }
 
     private static long narediSeed(int velikost) {
